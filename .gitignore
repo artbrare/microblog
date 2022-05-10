@@ -1,6 +1,6 @@
 # files
 messages.pot
-
+.flaskenv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
