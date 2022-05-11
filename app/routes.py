@@ -1,14 +1,17 @@
-from flask import flash, redirect, render_template, request, g
+from flask import flash, redirect, render_template, request, g, jsonify
 from flask.helpers import url_for
 from flask_babel import _, get_locale
 from werkzeug.urls import url_parse
 from app import app, db
-from app.forms import EmptyForm, LoginForm, RegistrationForm, EditProfileForm, EmptyForm, PostForm, ResetPasswordRequestForm, ResetPasswordForm
+from app.forms import LoginForm, RegistrationForm, EditProfileForm, EmptyForm, PostForm, \
+    ResetPasswordRequestForm, ResetPasswordForm
 from app.email import send_password_reset_email
+from app.translate import translate
 from flask_login import current_user, login_user, logout_user, login_required
 from app.models import User, Post
 from datetime import datetime
 from langdetect import detect, LangDetectException
+
 
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/index', methods=['GET', 'POST'])
@@ -30,7 +33,8 @@ def index():
     next_url = url_for('index', page=posts.next_num) if posts.has_next else None
     prev_url = url_for('index', page=posts.prev_num) if posts.has_prev else None
     return render_template('index.html', title=_('Home'), form=form,
-            posts=posts.items, next_url=next_url, prev_url=prev_url)
+                           posts=posts.items, next_url=next_url, prev_url=prev_url)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -49,10 +53,12 @@ def login():
         return redirect(next_page)
     return render_template('login.html', title=_('Sign In'), form=form)
 
+
 @app.route('/logut')
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -68,6 +74,7 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html', title=_('Register'), form=form)
 
+
 @app.route('/user/<username>')
 @login_required
 def user(username):
@@ -82,12 +89,15 @@ def user(username):
     form = EmptyForm()
     return render_template('user.html', user=user, posts=posts.items,
                            next_url=next_url, prev_url=prev_url, form=form)
+
+
 @app.before_request
 def before_request():
     if current_user.is_authenticated:
         current_user.last_seen = datetime.utcnow()
         db.session.commit()
         g.locale = str(get_locale())
+
 
 @app.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
@@ -103,6 +113,7 @@ def edit_profile():
         form.username.data = current_user.username
         form.about_me.data = current_user.about_me
     return render_template('edit_profile.html', title=_('Edit Profile'), form=form)
+
 
 @app.route('/follow/<username>', methods=['POST'])
 @login_required
@@ -122,7 +133,8 @@ def follow(username):
         return redirect(url_for('user', username=username))
     else:
         return redirect(url_for('index'))
-    
+
+
 @app.route('/unfollow/<username>', methods=['POST'])
 @login_required
 def unfollow(username):
@@ -142,16 +154,17 @@ def unfollow(username):
     else:
         return redirect(url_for('index'))
 
+
 @app.route('/explore')
 @login_required
 def explore():
     page = request.args.get('page', 1, type=int)
     posts = Post.query.order_by(Post.timestamps.desc()).paginate(page,
-            app.config['POSTS_PER_PAGE'], False)
+                                                                 app.config['POSTS_PER_PAGE'], False)
     next_url = url_for('explore', page=posts.next_num) if posts.has_next else None
     prev_url = url_for('explore', page=posts.prev_num) if posts.has_prev else None
     return render_template('index.html', title=_('Explore'),
-            posts=posts.items, prev_url=prev_url, next_url=next_url)
+                           posts=posts.items, prev_url=prev_url, next_url=next_url)
 
 
 @app.route('/reset_password_request', methods=['GET', 'POST'])
@@ -167,6 +180,7 @@ def reset_password_request():
         return redirect(url_for('login'))
     return render_template('reset_password_request.html', title=_('Reset Password'), form=form)
 
+
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     if current_user.is_authenticated:
@@ -181,9 +195,11 @@ def reset_password(token):
         flash('Your password has been reset.')
         return redirect(url_for('login'))
     return render_template('reset_password.html', form=form)
-    
 
 
-
-
-
+@app.route('/translate', methods=['POST'])
+@login_required
+def translate_text():
+    return jsonify({'text': translate(request.form['text'],
+                                      request.form['source_language'],
+                                      request.form['dest_language'])})
