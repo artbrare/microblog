@@ -8,6 +8,7 @@ from app.email import send_password_reset_email
 from flask_login import current_user, login_user, logout_user, login_required
 from app.models import User, Post
 from datetime import datetime
+from langdetect import detect, LangDetectException
 
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/index', methods=['GET', 'POST'])
@@ -15,7 +16,11 @@ from datetime import datetime
 def index():
     form = PostForm()
     if form.validate_on_submit():
-        post = Post(body=form.post.data, author=current_user)
+        try:
+            language = detect(form.post.data)
+        except LangDetectException:
+            language = ''
+        post = Post(body=form.post.data, author=current_user, language=language)
         db.session.add(post)
         db.session.commit()
         flash(_('Your post is now live!'))
@@ -83,7 +88,6 @@ def before_request():
         current_user.last_seen = datetime.utcnow()
         db.session.commit()
         g.locale = str(get_locale())
-        print(g.locale)
 
 @app.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
